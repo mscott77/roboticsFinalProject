@@ -1,0 +1,14 @@
+setup.py
+kinematics/__init__.py
+kinematics/kinematics.py
+myLib.egg-info/PKG-INFO
+myLib.egg-info/SOURCES.txt
+myLib.egg-info/dependency_links.txt
+myLib.egg-info/top_level.txt
+transforms/__init__.py
+transforms/transforms.py
+utils/__init__.py
+utils/numpyUtils.py
+utils/sympyUtils.py
+visualization/__init__.py
+visualization/visualization.py
