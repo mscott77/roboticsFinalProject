@@ -20,27 +20,20 @@ class NavigationScene():
             obstacles   - a list of Obstacle objects
             start       - list of JOINT ANGLES that defines the starting configuration of the robot arm
             end         - tuple (x,y) representing the goal COORDINATES (the point in space we want to bring the robot's end-effector to) 
+
+        Notes:
+            _function() - functions and variables starting with underscore are not intended to be access by the user
         """
         
-        self.arm = arm
-        self.obstacles = obstacles
-        self.start = start
-        self.target = target
+        self._arm = arm
+        self._obstacles = obstacles
+        self._start = start
+        self._target = target
 
-        self.solutionWasFound = False
-        self.solution = None
+        self._solutionWasFound = False
+        self._solution = None
 
-    def drawScene(self):
-        """
-        draws the initial position, any obstacles defined, and the target point in a visualization
-        """
-        viz = VizScene()
-        viz.add_arm(self.arm, draw_frames=True)
-        for obstacle in self.obstacles:
-            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
-        # goal (even though we use the add_obstacle() function)
-        viz.add_obstacle(pos = [self.target[0],self.target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
-        viz.hold()
+    #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
     def PRM(self, numLearnPhasePoints: int) -> List[List[float]]:
         """
@@ -61,8 +54,40 @@ class NavigationScene():
             a list of lists representing the solution path from start to target (if a solution was found)
             None - if a solution was not found
         """
-        self.SolutionWasFound = True    # FIXME: once you actually implement the algorithm, only set this to true if a solution actually was found
+        self._solutionWasFound = True    # FIXME: once you actually implement the algorithm, only set this to true if a solution actually was found
 
+        c_space_non_collision_points = []
+        c_space_collision_points = []
+
+    def _checkIfConfigIsInCollision(qVals) -> bool:
+        """
+        Usage:  
+            isCollision = _checkIfConfigIsInCollision([q1,q2])
+
+        Abstract:
+            pass in (single set of) joint angles, returns whether robot is in collision or not
+            uses the obstacles and arm defined in the class to do calculations
+
+        Arguments:
+            qVals - a list of the joint angles for a single configuration
+
+        Returns:
+            boolean: isInCollision
+        """
+        pass    # FIXME: pickup where you left off
+
+    #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
+    def drawScene(self):
+        """
+        draws the initial position, any obstacles defined, and the target point in a visualization
+        """
+        viz = VizScene()
+        viz.add_arm(self._arm, draw_frames=True)
+        for obstacle in self._obstacles:
+            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
+        # goal (even though we use the add_obstacle() function)
+        viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
+        viz.hold()
 
     def animateSolution(self, animationDelay: float=0.01):
         """
@@ -70,17 +95,20 @@ class NavigationScene():
 
         assuming PRM() has been run and a solution has been found, this will animate each 
         """
-        if self.solutionWasFound:
+        if self._solutionWasFound:
             print("animating solution")
             viz = VizScene()
-            viz.add_arm(self.arm)
-            for obstacle in self.obstacles:
+            viz.add_arm(self._arm)
+            for obstacle in self._obstacles:
                 viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
             # goal (even though we use the add_obstacle() function)
-            viz.add_obstacle(pos = [self.target[0],self.target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
+            viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
-            for jointConfig in self.solution:
+            for jointConfig in self._solution:
                 viz.update(qs=[jointConfig])
                 time.sleep(animationDelay)
         else:
             print("ERROR - no solution has been found. run PRM to find a solution")
+
+
+        
