@@ -326,6 +326,9 @@ class VizScene:
 
 
     def add_obstacle(self, pos, color=yellow, rad = 1.0):
+        """
+        color = (R, G, B, A) A=0 -> transparent
+        """
         if not isinstance(pos, (np.ndarray)):
             pos = np.array(pos)
 
@@ -334,7 +337,7 @@ class VizScene:
         m1 = gl.GLMeshItem(
             meshdata=mobst,
             smooth=True,
-            color=yellow
+            color=color
             #shader="shaded"
             #glOptions="additive",
         )
