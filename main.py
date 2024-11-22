@@ -9,7 +9,7 @@ from obstacle import Obstacle
 # robot
 link_length = 6    # (meters)
 # obstacles
-obstacle = Obstacle([2.125,3,0],2)
+obstacle = Obstacle([6,8.25,0],2)
 # start config (q1,q2) for planar robot
 qStart = [0,0]
 # target point
@@ -24,10 +24,13 @@ arm = kin.SerialArm(dh,joint_types)
 
 navScene = NavigationScene(arm,obstacle,qStart,target)
 
-# navScene.drawScene()
 
-isCollision = navScene.checkCircles(0,0,0,6)
+
+isCollision = navScene._checkIfConfigIsInCollision([0,np.pi/2])
 print(f'collision occured: {isCollision}')
+
+navScene.drawScene()
+
 
 # navScene._solution = [
 #     [10,10],

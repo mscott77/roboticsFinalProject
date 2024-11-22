@@ -38,6 +38,8 @@ class NavigationScene():
         self._solutionWasFound = False
         self._solution = None
 
+        self.intermediateCircles = []
+
     #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
     def PRM(self, numLearnPhasePoints: int) -> List[List[float]]:
@@ -64,7 +66,7 @@ class NavigationScene():
         c_space_non_collision_points = []
         c_space_collision_points = []
 
-    def _checkIfConfigIsInCollision(qVals) -> bool:
+    def _checkIfConfigIsInCollision(self, qVals) -> bool:
         """
         Usage:  
             isCollision = _checkIfConfigIsInCollision([q1,q2])
@@ -79,11 +81,28 @@ class NavigationScene():
         Returns:
             boolean: isInCollision
         """
-        pass    # FIXME: pickup where you left off
+        
+        #find x1, y1 (joint 1) and x2, y2 (joint 2) from fk
+        T1 = self._arm.fk(qVals, 1)
+        x1 = T1[0][3]
+        y1 = T1[1][3]
+        T2 = self._arm.fk(qVals)
+        x2 = T2[0][3]
+        y2 = T2[1][3]
+        
+        linkCollision = self.checkCircles(0, 0, x1, y1)
+        link2Collision = self.checkCircles(x1, y1, x2, y2)
+        
+        if linkCollision:
+            return True
+        elif link2Collision:
+            return True
+        else:
+            return False
 
     def checkCircles(self, x1, y1, x2, y2):
         # generate circles along the arm (use mx+b and basic trig to find points along line that represent center of circles
-        numCircles = int(self._linkLength/(self._linkWidth/2))
+        numCircles = int(self._linkLength/(self._linkWidth/2)) + 1
         smallCircleRadius = self._linkWidth/2
         intermediatePoints = []
         linkCollision = 0
@@ -91,10 +110,12 @@ class NavigationScene():
             fraction = i / (numCircles)  # Fraction of the way along the line
             x_intermediate = x1 + fraction * (x2 - x1)
             y_intermediate = y1 + fraction * (y2 - y1)
+            self.intermediateCircles.append(([x_intermediate, y_intermediate,0],smallCircleRadius))
             intermediatePoints.append((x_intermediate, y_intermediate))
-        for j in range(numCircles-1):
+        for j in range(numCircles):
             smallCircleCenter = intermediatePoints[j]
-            if np.sqrt((self._obstacleCenter[0] - smallCircleCenter[0])**2 + (self._obstacleCenter[1] - smallCircleCenter[1])**2) <= smallCircleRadius +self._obstacleRadius:
+            distBetweenCircleCenters = np.sqrt((self._obstacleCenter[0] - smallCircleCenter[0])**2 + (self._obstacleCenter[1] - smallCircleCenter[1])**2)
+            if  distBetweenCircleCenters <= smallCircleRadius + self._obstacleRadius:
                 linkCollision = 1
 		
         return linkCollision
@@ -106,9 +127,17 @@ class NavigationScene():
         """
         viz = VizScene()
         viz.add_arm(self._arm, draw_frames=True)
+        viz.update(qs=[0,np.pi/2])
+        #viz.add_frame(self._arm.fk[0,0])
         viz.add_obstacle(pos=self._obstacleCenter, rad=self._obstacleRadius, color=(0,0,0,1))
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
+
+        # Plot intermediate circles
+        # for i in range(len(self.intermediateCircles)):
+        #     position = self.intermediateCircles[i][0]
+        #     radius = self.intermediateCircles[i][1]
+        #     viz.add_obstacle(pos=position, rad=radius, color = (0,0,0,1))
         viz.hold()
 
     def animateSolution(self, animationDelay: float=0.01):
