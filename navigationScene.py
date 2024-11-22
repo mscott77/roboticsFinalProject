@@ -3,10 +3,11 @@ from obstacle import Obstacle
 from typing import List,Tuple
 from myLib.visualization.visualization import VizScene
 import time
+import numpy as np
 
 class NavigationScene():
 
-    def __init__(self, arm: SerialArm, obstacles: List[Obstacle], start: List, target: Tuple[float,float]):
+    def __init__(self, arm: SerialArm, obstacle: Obstacle, start: List, target: Tuple[float,float]):
         """
         navScene = NavigationScene(SerialArm(dh,jointTypes), [Obstacle([x,y,z], r), Obstacle(...)], [q1,q2], (x,y))
 
@@ -26,9 +27,13 @@ class NavigationScene():
         """
         
         self._arm = arm
-        self._obstacles = obstacles
+        self._obstacleCenter = obstacle.location
+        self._obstacleRadius = obstacle.radius
         self._start = start
         self._target = target
+
+        self._linkLength = self._arm.dh[0][2]
+        self._linkWidth = 0.5
 
         self._solutionWasFound = False
         self._solution = None
@@ -76,6 +81,24 @@ class NavigationScene():
         """
         pass    # FIXME: pickup where you left off
 
+    def checkCircles(self, x1, y1, x2, y2):
+        # generate circles along the arm (use mx+b and basic trig to find points along line that represent center of circles
+        numCircles = int(self._linkLength/(self._linkWidth/2))
+        smallCircleRadius = self._linkWidth/2
+        intermediatePoints = []
+        linkCollision = 0
+        for i in range(1, numCircles + 1):  # Divide the line into (num_points + 1) segments
+            fraction = i / (numCircles)  # Fraction of the way along the line
+            x_intermediate = x1 + fraction * (x2 - x1)
+            y_intermediate = y1 + fraction * (y2 - y1)
+            intermediatePoints.append((x_intermediate, y_intermediate))
+        for j in range(numCircles-1):
+            smallCircleCenter = intermediatePoints[j]
+            if np.sqrt((self._obstacleCenter[0] - smallCircleCenter[0])**2 + (self._obstacleCenter[1] - smallCircleCenter[1])**2) <= smallCircleRadius +self._obstacleRadius:
+                linkCollision = 1
+		
+        return linkCollision
+
     #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
     def drawScene(self):
         """
@@ -83,8 +106,7 @@ class NavigationScene():
         """
         viz = VizScene()
         viz.add_arm(self._arm, draw_frames=True)
-        for obstacle in self._obstacles:
-            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
+        viz.add_obstacle(pos=self._obstacleCenter, rad=self._obstacleRadius, color=(0,0,0,1))
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
         viz.hold()
