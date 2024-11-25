@@ -194,7 +194,7 @@ class NavigationScene():
         if jointConfig:
             config = jointConfig
         else:
-            config = [self._start]
+            config = self._start
 
         viz = VizScene()
         if drawArm:
@@ -205,12 +205,9 @@ class NavigationScene():
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
         if drawCollisionCircles:
-            pass
-        # Plot intermediate circles
-        # for i in range(len(self.intermediateCircles)):
-        #     position = self.intermediateCircles[i][0]
-        #     radius = self.intermediateCircles[i][1]
-        #     viz.add_obstacle(pos=position, rad=radius, color = (0,0,0,1))
+            circles = self.generateArmCircles(config)
+            for circle in circles:
+                viz.add_obstacle(pos=circle[0],rad=circle[1],color=(1,.25,0,.75))
         viz.hold()
 
     def animateSolution(self, animationDelay: float=0.01):

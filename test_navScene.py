@@ -132,6 +132,30 @@ def test_6_checkIfConfigIsInCollision():
     if __name__ == "__main__":
         navScene.drawScene()
 
+# bigger spheres for representing the arm (bigger link width) so that the circles show up in visulization
+def test_7_checkIfConfigIsInCollision():
+    jointConfig = [0,0]
+    obstacle = Obstacle([14.5,0,0],2)
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    target = (0,6)
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacle,[0,0],target,linkWidth)
+
+    isCollision = navScene._checkIfConfigIsInCollision(jointConfig)
+    assert isCollision == True
+
+
+    if __name__ == "__main__":
+        navScene.drawScene()
+        navScene.drawScene(drawCollisionCircles=True)
+        navScene.drawScene(drawArm=False,drawCollisionCircles=True)
+
 # kissing obstacle test
 
 # kissing obstacle in different joint configuration
@@ -139,13 +163,7 @@ def test_6_checkIfConfigIsInCollision():
 
 
 
-
-
-
-
-
-
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    test_1_checkIfConfigIsInCollision()
+    test_7_checkIfConfigIsInCollision()
         
