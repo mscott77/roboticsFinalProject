@@ -4,6 +4,7 @@ from typing import List,Tuple
 from myLib.visualization.visualization import VizScene
 import time
 import numpy as np
+import random
 
 class NavigationScene():
 
@@ -33,6 +34,7 @@ class NavigationScene():
         self._target = target
 
         self._linkLength = self._arm.dh[0][2]
+        self._reachRadius = self._linkLength*2
         self._linkWidth = 0.5
 
         self._solutionWasFound = False
@@ -65,6 +67,33 @@ class NavigationScene():
 
         c_space_non_collision_points = []
         c_space_collision_points = []
+
+
+        for i in range(numLearnPhasePoints):
+            coordinates = self.generatePointCoordinatesInCircle()
+            # get joint angles for the given point
+            coordinateArray = [coordinates[0], coordinates[1], 0]
+            qs = self.arm.ik_position(coordinateArray, method='J_T')
+            # check if it a collision point or not
+            isCollision= self.checkCollision(qs)
+            # make the point in C-space
+            c_point = qs
+            # decide whether to save the point or not
+            if not isCollision:
+                # add the point to a list of points
+                c_space_non_collision_points.append(c_point)     # (c_space_non_collision_points  is a class variables)
+            else:
+                c_space_collision_points.append(c_point)   # you don't really need these to find the path, but they would be nice to have to visualize the c-space
+
+    def generatePointCoordinatesInCircle(self):
+        # generate a single point within the robot reach (may need to pass in reach radius, or access as a class variable
+        while True:
+            x = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
+            y = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
+                
+            # Check if the point is inside the circle
+            if (x - 0)**2 + (y - 0)**2 <= self._reachRadius**2:
+                return x, y
 
     def _checkIfConfigIsInCollision(self, qVals) -> bool:
         """
@@ -119,6 +148,9 @@ class NavigationScene():
                 linkCollision = 1
 		
         return linkCollision
+
+
+
 
     #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
     def drawScene(self):
