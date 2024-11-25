@@ -29,7 +29,7 @@ navScene = NavigationScene(arm,obstacle,qStart,target)
 isCollision = navScene._checkIfConfigIsInCollision([0,np.pi/2])
 print(f'collision occured: {isCollision}')
 
-navScene.drawScene()
+navScene.drawInitialScene()
 
 
 # navScene._solution = [

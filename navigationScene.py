@@ -1,4 +1,4 @@
-from kinematics.kinematics import SerialArm
+from myLib.kinematics.kinematics import SerialArm
 from obstacle import Obstacle
 from typing import List,Tuple
 from myLib.visualization.visualization import VizScene
@@ -8,7 +8,7 @@ import random
 
 class NavigationScene():
 
-    def __init__(self, arm: SerialArm, obstacle: Obstacle, start: List, target: Tuple[float,float]):
+    def __init__(self, arm: SerialArm, obstacle: Obstacle, start: List, target: Tuple[float,float], linkWidth):
         """
         navScene = NavigationScene(SerialArm(dh,jointTypes), [Obstacle([x,y,z], r), Obstacle(...)], [q1,q2], (x,y))
 
@@ -21,7 +21,8 @@ class NavigationScene():
             arm         - define the robot arm as outlined in the Serial Arm class
             obstacles   - a list of Obstacle objects
             start       - list of JOINT ANGLES that defines the starting configuration of the robot arm
-            end         - tuple (x,y) representing the goal COORDINATES (the point in space we want to bring the robot's end-effector to) 
+            target      - tuple (x,y) representing the goal COORDINATES (the point in space we want to bring the robot's end-effector to) 
+            linkWidth   - width of the links used when calculating collisions (generated circles will have diameter equal to linkWidth)
 
         Notes:
             _function() - functions and variables starting with underscore are not intended to be access by the user
@@ -33,14 +34,13 @@ class NavigationScene():
         self._start = start
         self._target = target
 
-        self._linkLength = self._arm.dh[0][2]
-        self._reachRadius = self._linkLength*2
-        self._linkWidth = 0.5
+        self._link1Length = self._arm.dh[0][2]
+        self._link2Length = self._arm.dh[1][2]
+        self._reachRadius = self._link1Length*self._link2Length
+        self._linkWidth = linkWidth
 
         self._solutionWasFound = False
         self._solution = None
-
-        self.intermediateCircles = []
 
     #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
@@ -95,7 +95,10 @@ class NavigationScene():
             if (x - 0)**2 + (y - 0)**2 <= self._reachRadius**2:
                 return x, y
 
-    def _checkIfConfigIsInCollision(self, qVals) -> bool:
+
+
+    #----------------------------------------------------------------------------- COLLISION FUNCTIONS -------------------------------------------------------------------------------------
+    def _checkIfConfigIsInCollision(self, jointConfig) -> bool:
         """
         Usage:  
             isCollision = _checkIfConfigIsInCollision([q1,q2])
@@ -111,60 +114,98 @@ class NavigationScene():
             boolean: isInCollision
         """
         
-        #find x1, y1 (joint 1) and x2, y2 (joint 2) from fk
-        T1 = self._arm.fk(qVals, 1)
-        x1 = T1[0][3]
-        y1 = T1[1][3]
-        T2 = self._arm.fk(qVals)
-        x2 = T2[0][3]
-        y2 = T2[1][3]
-        
-        linkCollision = self.checkCircles(0, 0, x1, y1)
-        link2Collision = self.checkCircles(x1, y1, x2, y2)
-        
-        if linkCollision:
-            return True
-        elif link2Collision:
-            return True
-        else:
-            return False
+        circles = self.generateArmCircles(jointConfig)
+        isInCollision = self.checkCircles(circles)
 
-    def checkCircles(self, x1, y1, x2, y2):
-        # generate circles along the arm (use mx+b and basic trig to find points along line that represent center of circles
-        numCircles = int(self._linkLength/(self._linkWidth/2)) + 1
-        smallCircleRadius = self._linkWidth/2
-        intermediatePoints = []
+        return isInCollision
+
+    def checkCircles(self, circles: List[Tuple[List[float],float]] ):
+        """
+        generates circles along the arm (use mx+b and basic trig to find points along line that represent center of circles
+        """
+        # innocent until proven guilty method
         linkCollision = 0
-        for i in range(1, numCircles + 1):  # Divide the line into (num_points + 1) segments
-            fraction = i / (numCircles)  # Fraction of the way along the line
-            x_intermediate = x1 + fraction * (x2 - x1)
-            y_intermediate = y1 + fraction * (y2 - y1)
-            self.intermediateCircles.append(([x_intermediate, y_intermediate,0],smallCircleRadius))
-            intermediatePoints.append((x_intermediate, y_intermediate))
-        for j in range(numCircles):
-            smallCircleCenter = intermediatePoints[j]
-            distBetweenCircleCenters = np.sqrt((self._obstacleCenter[0] - smallCircleCenter[0])**2 + (self._obstacleCenter[1] - smallCircleCenter[1])**2)
-            if  distBetweenCircleCenters <= smallCircleRadius + self._obstacleRadius:
+
+        # check the generated circles
+        for circle in circles:
+            armCircleCenterCoords = circle[0]
+            armCircleRadius = circle[1]
+            # c^2 = sqrt( a^2 + b^2)
+            distBetweenCircleCenters = np.sqrt((self._obstacleCenter[0] - armCircleCenterCoords[0])**2 + (self._obstacleCenter[1] - armCircleCenterCoords[1])**2)
+            if  distBetweenCircleCenters <= armCircleRadius + self._obstacleRadius:
                 linkCollision = 1
 		
         return linkCollision
 
+    def generateArmCircles(self, jointConfig) -> List[Tuple[List[float],float]]:
+        """
+        generates a list of circles that approximate the space that the arm takes up
+        in order to check for collisions
+        (generates for entire arm, joints 1 and 2)
 
+        arguments:
+            - jointConfig: joint angles of the arm 
 
+        returns:
+            - list of lists representing the coordinates of each circle
+                [ ([x1,y1,z1], r1), ([x2,y2,z2], r2), (circle3), etc...]
+            - radius of the circles
+                (a single radius is used across the entire robot arm - assume consistent cross section of robot arm)
+        """
+        intermediateCircles = []
+
+        x0 = 0
+        y0 = 0
+        T1 = self._arm.fk(jointConfig, 1)
+        x1 = T1[0][3]
+        y1 = T1[1][3]
+        T2 = self._arm.fk(jointConfig)
+        x2 = T2[0][3]
+        y2 = T2[1][3]
+
+        armCircleRadius = self._linkWidth/2
+        #-------------link 1----------------------
+        numCirclesL1 = int(self._link1Length/armCircleRadius) + 1
+        for i in range(1, numCirclesL1 + 1):  # Divide the line into (num_points + 1) segments
+            fraction = i / (numCirclesL1)  # Fraction of the way along the line
+            x_intermediate = x0 + fraction * (x1 - x0)
+            y_intermediate = y0 + fraction * (y1 - y0)
+            intermediateCircles.append(([x_intermediate, y_intermediate,0],armCircleRadius))
+
+        #-------------link 2----------------------
+        numCircles = int(self._link2Length/armCircleRadius) + 1
+        for i in range(1, numCircles + 1):  # Divide the line into (num_points + 1) segments
+            fraction = i / (numCircles)  # Fraction of the way along the line
+            x_intermediate = x1 + fraction * (x2 - x1)
+            y_intermediate = y1 + fraction * (y2 - y1)
+            intermediateCircles.append(([x_intermediate, y_intermediate,0],armCircleRadius))
+
+        return intermediateCircles
+    
 
     #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
-    def drawScene(self):
+    def drawScene(self,jointConfig=None,drawFrames: bool=False, drawArm: bool=True, drawCollisionCircles: bool=False):
         """
         draws the initial position, any obstacles defined, and the target point in a visualization
+
+        if you pass in a joint configuration, it will plot that configuration
+        else it will use the starting configuration
         """
+        if jointConfig:
+            config = jointConfig
+        else:
+            config = [self._start]
+
         viz = VizScene()
-        viz.add_arm(self._arm, draw_frames=True)
-        viz.update(qs=[0,np.pi/2])
-        #viz.add_frame(self._arm.fk[0,0])
+        if drawArm:
+            viz.add_arm(self._arm, draw_frames=drawFrames)
+            viz.update(qs=config)
         viz.add_obstacle(pos=self._obstacleCenter, rad=self._obstacleRadius, color=(0,0,0,1))
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
+        if drawCollisionCircles:
+            pass
         # Plot intermediate circles
         # for i in range(len(self.intermediateCircles)):
         #     position = self.intermediateCircles[i][0]
