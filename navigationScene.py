@@ -358,6 +358,9 @@ class NavigationScene():
 
         if drawCollisionCircles:
             circles = self.generateArmCircles(config)
+            if drawTargetConfig:
+                moreCircles = self.generateArmCircles(self._targetJointConfig)
+                circles.extend(moreCircles)
             for circle in circles:
                 viz.add_obstacle(pos=circle[0],rad=circle[1],color=(1,.25,0,.75))
         viz.hold()
