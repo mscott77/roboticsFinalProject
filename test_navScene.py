@@ -332,6 +332,76 @@ def test_9_02_checkIfConfigIsInCollision():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
+#---------------- finding non-collision joint configuration for target position-----------------
+
+# valid
+def test_11_findJointConfigForTarget():
+    target = (6,6)
+    jointConfig = [0,0]
+    obstacles = [Obstacle([3,-3,0],2)]
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,jointConfig,target,linkWidth)
+
+    targetJointConfig = navScene._findJointConfigForTarget()
+    assert targetJointConfig is not None, "couldn't find a joint configuration for the target position"
+    print(f'target joint config (rads) = {targetJointConfig}')
+
+
+    if __name__ == "__main__":
+        navScene.drawScene(drawTargetConfig=True)
+
+# valid
+def test_11_01_findJointConfigForTarget():
+    target = (4,3)
+    jointConfig = [0,0]
+    obstacles = [Obstacle([3,-3,0],2)]
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,jointConfig,target,linkWidth)
+
+    targetJointConfig = navScene._findJointConfigForTarget()
+    assert targetJointConfig is not None, "couldn't find a joint configuration for the target position"
+    print(f'target joint config (rads) = {targetJointConfig}')
+
+
+    if __name__ == "__main__":
+        navScene.drawScene(drawTargetConfig=True)
+
+# same as 11_01 but an obstacle is in the way so second joint config must be used
+def test_11_02_findJointConfigForTarget():
+    target = (4,3)
+    jointConfig = [0,0]
+    obstacles = [Obstacle([0,3,0],2)]
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,jointConfig,target,linkWidth)
+
+    targetJointConfig = navScene._findJointConfigForTarget()
+    assert targetJointConfig is not None, "couldn't find a joint configuration for the target position"
+    print(f'target joint config (rads) = {targetJointConfig}')
+
+
+    if __name__ == "__main__":
+        navScene.drawScene(drawTargetConfig=True, drawArm=True, drawCollisionCircles=True)
 #----------------------------------------------- PRM tests ----------------------------------------------------
 
 # same parameters as test 6
@@ -386,7 +456,6 @@ def test_10_01_PRM_intialCollisionCheck():
         navScene.drawScene()
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
-
 
 #---------------------------------------------- animation and plotting "tests" -----------------------------------
 # but they're not actually unit tests/pytests.
@@ -452,5 +521,5 @@ def pest_drawCspace_noSolution():
 #-------------------------------------------------------------------------------- MAIN -------------------------------------------------------------------------------------------------
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    pest_drawCspace_negativeRotationNecessary()
+    test_11_02_findJointConfigForTarget()
         

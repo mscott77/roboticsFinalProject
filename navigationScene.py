@@ -7,6 +7,7 @@ import numpy as np
 import random
 import math
 import matplotlib.pyplot as plt
+import copy
 
 class Solution():
     def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None):
@@ -46,6 +47,7 @@ class NavigationScene():
         # self._obstacleRadius = obstacle.radius
         self._start = start
         self._target = target
+        self._targetJointConfig = None
 
         self._link1Length = self._arm.dh[0][2]
         self._link2Length = self._arm.dh[1][2]
@@ -80,6 +82,7 @@ class NavigationScene():
             None - if a solution was not found
         """
         
+        #------------------------------------ SETUP --------------------------------------
         c_space_non_collision_points = []
         c_space_collision_points = []
 
@@ -89,12 +92,24 @@ class NavigationScene():
             self._solutionWasFound = False
             self._solution = Solution(message="start configuration is in collision. a valid solution could not be found")
             return
+        else:
+            c_space_non_collision_points.append(self._start)
         # also make sure the goal is not in collision with an object
         isTargetPointInCollision = self._checkIfPointIsInCollision(self._target)
         if isTargetPointInCollision:
             self._solutionWasFound = False
             self._solution = Solution(message="target point is in collision. a valid solution could not be found")
             return
+        # try to find a joint configuration for the target position
+        targetConfiguration = self._findJointConfigForTarget()
+        if targetConfiguration:
+            c_space_non_collision_points.append(targetConfiguration)
+            self._targetJointConfig = targetConfiguration
+        else:
+            self._solutionWasFound = False
+            self._solution = Solution(message="could not find a valid configuration for the target position. a solution could not be found. try a different target position or move the obstacle(s)")
+            return 
+
 
         # -------------------------- LEARNING PHASE ------------------------
         for i in range(numLearnPhasePoints):
@@ -249,9 +264,67 @@ class NavigationScene():
 
         return intermediateCircles
     
+    def _findJointConfigForTarget(self):
+        """"
+        attempts to find a valid joint configuration that reaches the target and is not in collision.
+        to improve the chances of finding a valid configuration it searches using various starting points, up to 100 randomly generated starting points
+        if no valid starting configuration can be found, return none
+        """
+        
+        (q1a,q1b), (q2a,q2b) = self._ik_twoLink_analytical(self._target[0], self._target[1], self._link1Length, self._link2Length)
+        configs = [[q1a,q1b], [q2a,q2b]]
+        for config in configs:
+            isCollision = self._checkIfConfigIsInCollision(config)
+            if not isCollision:
+                self._targetJointConfig = config
+                return config
+            
+        return None
+
+    def _ik_twoLink_analytical(self, x, y, L1, L2):
+        # Step 1: Calculate the distance to the target point
+        d = np.sqrt(x**2 + y**2)
+        
+        # Check if the target is reachable
+        if d > L1 + L2:
+            raise ValueError("Target is outside the reachable workspace")
+        
+        # Step 2: Calculate theta_2 using the law of cosines
+        cos_theta2 = (d**2 - L1**2 - L2**2) / (2 * L1 * L2)
+        # Clamp the value of cos_theta2 to the range [-1, 1] to prevent numerical errors
+        cos_theta2 = np.clip(cos_theta2, -1.0, 1.0)
+        
+        # Two possible solutions for theta_2 (elbow-up and elbow-down)
+        theta2_1 = np.arccos(cos_theta2)  # elbow-up
+        theta2_2 = -np.arccos(cos_theta2) # elbow-down
+        
+        # Step 3: Calculate theta_1 for each solution
+        # Using the law of cosines for theta_1
+        k1 = L1 + L2 * np.cos(theta2_1)
+        k2 = L2 * np.sin(theta2_1)
+        theta1_1 = np.arctan2(y, x) - np.arctan2(k2, k1)
+        
+        k1 = L1 + L2 * np.cos(theta2_2)
+        k2 = L2 * np.sin(theta2_2)
+        theta1_2 = np.arctan2(y, x) - np.arctan2(k2, k1)
+        
+        return (theta1_1, theta2_1), (theta1_2, theta2_2)
+
+    def generateRandomJointConfigs(self, numConfigs: int):
+        configs = []
+        for i in range(numConfigs):
+            config = self.generateRandomJointConfig()
+            configs.append(config)
+        return configs
+            
+    def generateRandomJointConfig(self):
+        q1 = random.uniform(-2*np.pi, 2*np.pi)
+        q2 = random.uniform(-2*np.pi, 2*np.pi)
+        config = [q1,q2]
+        return config
 
     #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
-    def drawScene(self,jointConfig=None,drawFrames: bool=False, drawArm: bool=True, drawCollisionCircles: bool=False):
+    def drawScene(self,jointConfig=None,drawFrames: bool=False, drawArm: bool=True, drawCollisionCircles: bool=False, drawTargetConfig: bool=False):
         """
         draws the initial position, any obstacles defined, and the target point in a visualization
 
@@ -264,12 +337,22 @@ class NavigationScene():
             config = self._start
 
         viz = VizScene()
+
+        #starting arm configuration
         if drawArm:
             viz.add_arm(self._arm, draw_frames=drawFrames)
             viz.update(qs=config)
+
+            # ending arm configuration
+            if self._targetJointConfig and drawTargetConfig:
+                tempArm = copy.deepcopy(self._arm)
+                viz.add_arm(tempArm,draw_frames=drawFrames)
+                viz.update(qs=[config, self._targetJointConfig])
+
         # obstacle(s)
         for obstacle in self._obstacles:
             viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0.1,0.1,0.1,.25))
+        
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 

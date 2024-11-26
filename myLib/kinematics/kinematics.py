@@ -293,7 +293,8 @@ class SerialArm:
         return "Serial Arm\n" + dh_string
     
     #-------------functions specific to ik_position()----------------
-    def ik_position(self, target, q0=None, method='J_T', force=True, tol=1e-4, K=None, kd=0.001, max_iter=100):
+    def ik_position(self, target, q0=None, method='J_T', force=True, tol=1e-4, K=None, kd=0.001, max_iter=100, 
+                    debug=False, debug_step=False):
         """
         (qf, ef, iter, reached_max_iter, status_msg) = arm.ik2(target, q0=None, method='jt', force=False, tol=1e-6, K=None)
         Description:
@@ -322,6 +323,8 @@ class SerialArm:
 
             max_iter: maximum attempts before giving up.
 
+            "debug" and "debug_step" are used to plot intermediate values of algorithm. 
+
         Returns:
             qf: 6x1 numpy matrix of final joint values. If IK fails to converge the last set
             of joint angles is still returned
@@ -333,8 +336,6 @@ class SerialArm:
             flag: bool, "true" indicates successful IK solution and "false" unsuccessful
 
             status_msg: A string that may be useful to understanding why it failed. 
-
-            qlist: a list of the q values that the algorithm took on the way to the solution
         """
         # Fill in q if none given, and convert to numpy array 
         if isinstance(q0, np.ndarray):
@@ -353,8 +354,10 @@ class SerialArm:
         maximum_reach = 0
         for i in range(self.n):  # Add max length of each link
             maximum_reach = maximum_reach + np.sqrt(self.dh[i][1] ** 2 + self.dh[i][2] ** 2)
+
         pt = target  # Find distance to target
         target_distance = np.sqrt(pt[0] ** 2 + pt[1] ** 2 + pt[2] ** 2)
+
         if target_distance > maximum_reach and not force:
             print("WARNING: Target outside of reachable workspace!")
             return q, error, count, False, "Failed: Out of workspace"
@@ -362,52 +365,84 @@ class SerialArm:
             if target_distance > maximum_reach:
                 print("Target out of workspace, but finding closest solution anyway")
             else:
-                print("Target passes naive reach test, distance is {:.1} and max reach is {:.1}".format(float(target_distance), float(maximum_reach)))
+                print("Target passes naive reach test, distance is {:.1} and max reach is {:.1}".format(
+                    float(target_distance), float(maximum_reach)))
 
-        # check for a valid gain matrix
         if not isinstance(K, np.ndarray):
             return q, error, count, False,  "No gain matrix 'K' provided"
 
-        # check for a valid method
-        if method not in ('J_T', 'pinv'):
-            return q, error, count, False,  "invalid method: specify 'J_T' or 'pinv'"
+        count = 0
 
-        qList = []
-        error = self.getError(target, q)
-        while np.linalg.norm(error) > tol and count < max_iter:
+        def get_error(q):
+            cur_position = self.fk(q)
+            e = target - cur_position[0:3, 3]
+            return e
 
-            if method == 'pinv':
-                step = self.getStep_pinv(q, K, error, kd)
+        def get_jacobian(q):
+            J = self.jacob(q)
+            return J[0:3, :]
+
+        def get_jdag(J):
+            Jdag = J.T @ np.linalg.inv(J @ J.T + np.eye(3) * kd**2)
+            return Jdag
+
+        e = get_error(q)
+
+        if debug == True: 
+            arm = SerialArm(self.dh, self.jt, self.base, self.tip)
+            viz = VizScene()
+            viz.add_arm(arm)
+            
+            # this arm with joints that are almost pink is for the intermediate solutions
+            viz.add_arm(arm, joint_colors=[np.array([1.0, 51.0/255.0, 1.0, 1])]*arm.n)
+
+
+        while np.linalg.norm(e) > tol and count < max_iter:
+            count = count + 1
+            J = get_jacobian(q) 
+
+            if method == 'J_T':
+                qdelta = J.T @ K @ e 
+            elif method == 'pinv':
+                Jdag = get_jdag(J)
+                qdelta = Jdag @ K @ e
             else:
-                step = self.getStep_JT(q, K, error)
+                return q, False, "that method is not implemented"
+            
+            # here we assume that delta_t has been included in the gain matrix K. 
+            q = q + qdelta
 
-            q = q + step
+            if debug==True: 
+                viz.update(qs=[q0, q])
+                if debug_step == True:
+                    input('press Enter to see next iteration')
+                else: 
+                    time.sleep(1.0/2.0)
 
-            error = self.getError(target, q)
+            e = get_error(q)
+            print("error is: ", np.linalg.norm(e), "\t count is: ", count)
 
-            count += 1
-            qList.append(q)
+        return (q, e, count, count < max_iter, 'No errors noted, all clear')
 
-        return (q, error, count, count < max_iter, 'No errors noted', qList)
 
-    def getError(self, target, q):
-        curPos = self.fk(q)[:3,3]
-        return target - curPos
+    # def getError(self, target, q):
+    #     curPos = self.fk(q)[:3,3]
+    #     return target - curPos
     
-    def getStep_pinv(self,q, K, e, kd):
-        J = self.jacob(q)[:3,:]
-        JT = J.transpose()
-        I = np.eye(3)
+    # def getStep_pinv(self,q, K, e, kd):
+    #     J = self.jacob(q)[:3,:]
+    #     JT = J.transpose()
+    #     I = np.eye(3)
 
-        step = JT @ np.linalg.inv((J @ JT) + (kd**2)*I) @ (K @ e)
-        return step
+    #     step = JT @ np.linalg.inv((J @ JT) + (kd**2)*I) @ (K @ e)
+    #     return step
 
-    def getStep_JT(self,q, K, e):
-        J = self.jacob(q)[:3,:]
-        JT = J.transpose()
+    # def getStep_JT(self,q, K, e):
+    #     J = self.jacob(q)[:3,:]
+    #     JT = J.transpose()
         
-        step = JT @ K @ e
-        return step
+    #     step = JT @ K @ e
+    #     return step
 
 
 
