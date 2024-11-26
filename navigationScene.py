@@ -6,6 +6,11 @@ import time
 import numpy as np
 import random
 
+class Solution():
+    def __init__(self, jointConfigs: List[List[float]], message: str):
+        self.jointConfigs = jointConfigs
+        self.message = message
+
 class NavigationScene():
 
     def __init__(self, arm: SerialArm, obstacles: List[Obstacle], start: List, target: Tuple[float,float], linkWidth):
@@ -41,11 +46,14 @@ class NavigationScene():
         self._linkWidth = linkWidth
 
         self._solutionWasFound = False
-        self._solution = None
+        self._solution: Solution = None
+
+
+
 
     #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
-    def PRM(self, numLearnPhasePoints: int) -> List[List[float]]:
+    def PRM(self, numLearnPhasePoints: int):
         """
         jointConfigsToReachTarget = PRM(500)  
 
@@ -69,6 +77,19 @@ class NavigationScene():
         c_space_non_collision_points = []
         c_space_collision_points = []
 
+        # before doing anything, make sure the start configuation is not in collision
+        isStartConfigInCollision = self._checkIfConfigIsInCollision(self._start)
+        if isStartConfigInCollision:
+            self._solutionWasFound = False
+            self._solution = Solution(None,"start configuration is in collision. a valid solution could not be found")
+            return
+        # also make sure the goal is not in collision with an object
+        isTargetPointInCollision = self._checkIfPointIsInCollision(self._target)
+        if isTargetPointInCollision:
+            self._solutionWasFound = False
+            self._solution = Solution(None,"target point is in collision. a valid solution could not be found")
+            return
+
 
         for i in range(numLearnPhasePoints):
             coordinates = self.generatePointCoordinatesInCircle()
@@ -85,6 +106,8 @@ class NavigationScene():
                 c_space_non_collision_points.append(c_point)     # (c_space_non_collision_points  is a class variables)
             else:
                 c_space_collision_points.append(c_point)   # you don't really need these to find the path, but they would be nice to have to visualize the c-space
+
+        self._solution = Solution([[0,0] [0,np.pi/2]],"pathfinding success")  # FIXME: this is a fake solution
 
     def generatePointCoordinatesInCircle(self):
         # generate a single point within the robot reach (may need to pass in reach radius, or access as a class variable
@@ -119,6 +142,22 @@ class NavigationScene():
         isInCollision = self.checkCircles(circles)
 
         return isInCollision
+
+    def _checkIfPointIsInCollision(self, point: Tuple[float,float]):
+        """
+        checks if a single point is in collision with any of the obstacles. 
+        basically the same as _checkIfConfigIsInCollision, it even calls the same checkCircles() function,
+        but it calls checkCircles() and only passes in a single "circle" that represents the target
+        the target circle has radius of .001 so that calculations can still be performed but the target circle acts more like a point with radius of zero
+        """
+        negligibleRadius = .001
+
+        # a bit weird, but must be defiend as a list so that it works with the checkCircles function
+        circles = [([point[0], point[1], 0], negligibleRadius)]
+        isInCollision = self.checkCircles(circles)
+
+        return isInCollision
+
 
     def checkCircles(self, armCircles: List[Tuple[List[float],float]] ):
         """
@@ -204,7 +243,7 @@ class NavigationScene():
             viz.update(qs=config)
         # obstacle(s)
         for obstacle in self._obstacles:
-            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
+            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0.1,0.1,0.1,.25))
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 

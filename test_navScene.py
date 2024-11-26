@@ -1,7 +1,7 @@
 from myLib.kinematics import kinematics as kin
 from myLib.visualization.visualization import VizScene, ArmPlayer
 import numpy as np
-from navigationScene import NavigationScene
+from navigationScene import NavigationScene, Solution
 from obstacle import Obstacle
 
 
@@ -134,7 +134,7 @@ def test_6_checkIfConfigIsInCollision():
         navScene.drawScene()
 
 # bigger spheres for representing the arm (bigger link width) so that the circles show up in visulization
-def test_601_checkIfConfigIsInCollision():
+def test_6_01_checkIfConfigIsInCollision():
     jointConfig = [0,0]
     obstacles = [Obstacle([14.5,0,0],2)]
     linkWidth = 1
@@ -182,7 +182,7 @@ def test_7_checkIfConfigIsInCollision():
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
 # just shy of kissing
-def test_701_checkIfConfigIsInCollision():
+def test_7_01_checkIfConfigIsInCollision():
     jointConfig = [0,np.pi/2]
     obstacles = [Obstacle([6,8.26,0],2)]
     linkWidth = 0.5
@@ -231,7 +231,7 @@ def test_8_checkIfConfigIsInCollision():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
-def test_801_checkIfConfigIsInCollision():
+def test_8_01_checkIfConfigIsInCollision():
     jointConfig = [0,np.pi/2]
     obstacles = [Obstacle([5.2,2,0],0.5)]
     linkWidth = 1
@@ -282,7 +282,7 @@ def test_9_checkIfConfigIsInCollision():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
-def test_901_checkIfConfigIsInCollision():
+def test_9_01_checkIfConfigIsInCollision():
     jointConfig = [0,np.pi/2]
     obstacles = [Obstacle([13.5,0,0],1), Obstacle([6,8.5,0],2)]
     linkWidth = 1
@@ -307,7 +307,7 @@ def test_901_checkIfConfigIsInCollision():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
-def test_902_checkIfConfigIsInCollision():
+def test_9_02_checkIfConfigIsInCollision():
     jointConfig = [0,np.pi/4]
     obstacles = [Obstacle([13.5,0,0],1), Obstacle([6,8.5,0],2)]
     linkWidth = 1
@@ -332,7 +332,63 @@ def test_902_checkIfConfigIsInCollision():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
+#----------------------------------------------- PRM tests ----------------------------------------------------
+
+# same parameters as test 6
+# invalid starting position
+def test_10_PRM_intialCollisionCheck():
+    jointConfig = [0,0]
+    obstacles = [Obstacle([14.5,0,0],2)]
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    target = (0,6)
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,jointConfig,target,linkWidth)
+
+    navScene.PRM(100)
+    assert navScene._solution.jointConfigs == None
+    assert navScene._solution.message == "start configuration is in collision. a valid solution could not be found"
+    assert navScene._solutionWasFound == False
+
+
+    if __name__ == "__main__":
+        navScene.drawScene()
+        navScene.drawScene(drawCollisionCircles=True)
+        navScene.drawScene(drawArm=False,drawCollisionCircles=True)
+
+# invalid target point
+def test_10_01_PRM_intialCollisionCheck():
+    target = (6,6)
+    jointConfig = [0,0]
+    obstacles = [Obstacle([6,6,0],2)]
+    linkWidth = 1
+
+    link_length = 6 
+    dh = [  [0,0,link_length,0],
+    [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,jointConfig,target,linkWidth)
+
+    navScene.PRM(100)
+    assert navScene._solution.jointConfigs == None
+    assert navScene._solution.message == "target point is in collision. a valid solution could not be found"
+    assert navScene._solutionWasFound == False
+
+
+    if __name__ == "__main__":
+        navScene.drawScene()
+        navScene.drawScene(drawCollisionCircles=True)
+        navScene.drawScene(drawArm=False,drawCollisionCircles=True)
+
+#-------------------------------------------------------------------------------- MAIN -------------------------------------------------------------------------------------------------
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    test_902_checkIfConfigIsInCollision()
+    test_10_01_PRM_intialCollisionCheck()
         
