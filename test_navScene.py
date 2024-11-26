@@ -409,9 +409,48 @@ def pest_animateSolution():
     navScene.PRM(10)
     navScene.animateSolution()
 
+# must rotate to negative joint angles in order to get to target
+def pest_drawCspace_negativeRotationNecessary():
+    startingConfig = [0,0]
+    obstacles = [Obstacle([6,6,0],2)]
+    target = (0,6)
+    linkWidth = 0.5
+
+    link1_length = 6 
+    link2_length = 6
+    dh = [  
+        [0,0,link1_length,0],
+        [0,0,link2_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh, joint_types)
+    navScene = NavigationScene(arm, obstacles, startingConfig, target, linkWidth) 
+    navScene.PRM()
+    navScene.drawCspace()
+    navScene.drawScene()
+
+# no possible solution
+def pest_drawCspace_noSolution():
+    startingConfig = [0,0]
+    obstacles = [Obstacle([4,4,0],2), Obstacle([4,-4,0],2)]
+    target = (0,6)
+    linkWidth = 0.5
+
+    link1_length = 6 
+    link2_length = 6
+    dh = [  
+        [0,0,link1_length,0],
+        [0,0,link2_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh, joint_types)
+    navScene = NavigationScene(arm, obstacles, startingConfig, target, linkWidth) 
+    navScene.PRM()
+    navScene.drawCspace()
+    navScene.drawScene()
 
 #-------------------------------------------------------------------------------- MAIN -------------------------------------------------------------------------------------------------
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    pest_animateSolution()
+    pest_drawCspace_negativeRotationNecessary()
         

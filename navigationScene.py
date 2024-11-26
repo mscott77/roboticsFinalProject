@@ -6,6 +6,7 @@ import time
 import numpy as np
 import random
 import math
+import matplotlib.pyplot as plt
 
 class Solution():
     def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None):
@@ -59,7 +60,7 @@ class NavigationScene():
 
     #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
-    def PRM(self, numLearnPhasePoints: int):
+    def PRM(self, numLearnPhasePoints: int=8000):
         """
         jointConfigsToReachTarget = PRM(500)  
 
@@ -104,8 +105,8 @@ class NavigationScene():
             # config = self.arm.ik_position(coordinateArray, method='J_T')
 
             #----------option 2 - generate "point"(joint angles) in c-space------------------
-            q1 = random.uniform(0, 2*np.pi)
-            q2 = random.uniform(0, 2*np.pi)
+            q1 = random.uniform(-2*np.pi, 2*np.pi)
+            q2 = random.uniform(-2*np.pi, 2*np.pi)
             config = [q1,q2]
 
             # check if it a collision point or not
@@ -133,7 +134,7 @@ class NavigationScene():
 
 
 
-
+    # UNUSED
     def generatePointCoordinatesInCircle(self):
         # generate a single point within the robot reach
         while True:
@@ -277,6 +278,37 @@ class NavigationScene():
             for circle in circles:
                 viz.add_obstacle(pos=circle[0],rad=circle[1],color=(1,.25,0,.75))
         viz.hold()
+
+    def drawCspace(self):
+        if self._solutionWasFound:
+            # Sample data
+            list1 = self._solution.c_space_collision_points
+            list2 = self._solution.c_space_NONcollision_points
+
+            # Unpack the lists into x and y coordinates
+            x1, y1 = zip(*list1)  # Unpacks [[x, y], [x, y], ...] into separate x and y
+            x2, y2 = zip(*list2)
+
+            # start config
+            xStart = self._start[0]
+            yStart = self._start[1]
+
+            # Create a scatter plot
+            plt.scatter(x1, y1, color='red', label='collision')
+            plt.scatter(x2, y2, color='blue', label='free')
+            plt.scatter(xStart, yStart, color='green', label='starting configuration')
+
+            # Add labels, title, and legend
+            plt.xlabel('q1')
+            plt.ylabel('q2')
+            plt.title('C-Space')
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=3)
+
+
+            # Show the plot
+            plt.show()  
+        else:
+            print("ERROR - no solution has been found. run PRM to find a solution")
 
     def animateSolution(self, animationDelay: float=0.5):
         """
