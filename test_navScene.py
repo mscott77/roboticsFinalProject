@@ -387,8 +387,31 @@ def test_10_01_PRM_intialCollisionCheck():
         navScene.drawScene(drawCollisionCircles=True)
         navScene.drawScene(drawArm=False,drawCollisionCircles=True)
 
+
+#---------------------------------------------- animation and plotting "tests" -----------------------------------
+# but they're not actually unit tests/pytests.
+
+def pest_animateSolution():
+    startingConfig = [0,0]
+    obstacles = [Obstacle([6,6,0],2)]
+    linkWidth = 0.5
+
+    link1_length = 6 
+    link2_length = 6
+    dh = [  
+        [0,0,link1_length,0],
+        [0,0,link2_length,0]]
+    joint_types = ['r','r']
+
+    target = (0,6)
+    arm = kin.SerialArm(dh, joint_types)
+    navScene = NavigationScene(arm, obstacles, startingConfig, target, linkWidth) 
+    navScene.PRM(10)
+    navScene.animateSolution()
+
+
 #-------------------------------------------------------------------------------- MAIN -------------------------------------------------------------------------------------------------
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    test_10_01_PRM_intialCollisionCheck()
+    pest_animateSolution()
         

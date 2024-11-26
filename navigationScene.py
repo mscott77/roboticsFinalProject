@@ -5,11 +5,17 @@ from myLib.visualization.visualization import VizScene
 import time
 import numpy as np
 import random
+import math
 
 class Solution():
-    def __init__(self, jointConfigs: List[List[float]], message: str):
+    def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None):
+        """
+        if only a message is defined, it will be assumed no solution was found and all other properties will be set to None
+        """
         self.jointConfigs = jointConfigs
         self.message = message
+        self.c_space_collision_points = c_space_collision_points
+        self.c_space_NONcollision_points = c_space_NONcollision_points
 
 class NavigationScene():
 
@@ -72,8 +78,7 @@ class NavigationScene():
             a list of lists representing the solution path from start to target (if a solution was found)
             None - if a solution was not found
         """
-        self._solutionWasFound = True    # FIXME: once you actually implement the algorithm, only set this to true if a solution actually was found
-
+        
         c_space_non_collision_points = []
         c_space_collision_points = []
 
@@ -81,25 +86,32 @@ class NavigationScene():
         isStartConfigInCollision = self._checkIfConfigIsInCollision(self._start)
         if isStartConfigInCollision:
             self._solutionWasFound = False
-            self._solution = Solution(None,"start configuration is in collision. a valid solution could not be found")
+            self._solution = Solution(message="start configuration is in collision. a valid solution could not be found")
             return
         # also make sure the goal is not in collision with an object
         isTargetPointInCollision = self._checkIfPointIsInCollision(self._target)
         if isTargetPointInCollision:
             self._solutionWasFound = False
-            self._solution = Solution(None,"target point is in collision. a valid solution could not be found")
+            self._solution = Solution(message="target point is in collision. a valid solution could not be found")
             return
 
-
+        # -------------------------- LEARNING PHASE ------------------------
         for i in range(numLearnPhasePoints):
-            coordinates = self.generatePointCoordinatesInCircle()
-            # get joint angles for the given point
-            coordinateArray = [coordinates[0], coordinates[1], 0]
-            qs = self.arm.ik_position(coordinateArray, method='J_T')
+
+            #----------option 1 - generate point in cartesian space then convert to joint angles------------------
+            # coordinates = self.generatePointCoordinatesInCircle()
+            # coordinateArray = [coordinates[0], coordinates[1], 0]
+            # config = self.arm.ik_position(coordinateArray, method='J_T')
+
+            #----------option 2 - generate "point"(joint angles) in c-space------------------
+            q1 = random.uniform(0, 2*np.pi)
+            q2 = random.uniform(0, 2*np.pi)
+            config = [q1,q2]
+
             # check if it a collision point or not
-            isCollision= self.checkCollision(qs)
+            isCollision= self._checkIfConfigIsInCollision(config)
             # make the point in C-space
-            c_point = qs
+            c_point = config
             # decide whether to save the point or not
             if not isCollision:
                 # add the point to a list of points
@@ -107,10 +119,23 @@ class NavigationScene():
             else:
                 c_space_collision_points.append(c_point)   # you don't really need these to find the path, but they would be nice to have to visualize the c-space
 
-        self._solution = Solution([[0,0] [0,np.pi/2]],"pathfinding success")  # FIXME: this is a fake solution
+        # ------------------------- PATH FINDING PHASE -----------------------
+
+        # ------------------------- COMPOSE SOLUTION -----------------------------
+        # FIXME: this is a fake solution
+        self._solutionWasFound = True
+        self._solution = Solution(
+            jointConfigs=[[0,0], [0,np.pi/6], [0,np.pi/5], [0,np.pi/4], [0,np.pi/3], [0,np.pi/2]],
+            message="pathfinding success",
+            c_space_collision_points = c_space_collision_points,
+            c_space_NONcollision_points = c_space_non_collision_points
+        )
+
+
+
 
     def generatePointCoordinatesInCircle(self):
-        # generate a single point within the robot reach (may need to pass in reach radius, or access as a class variable
+        # generate a single point within the robot reach
         while True:
             x = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
             y = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
@@ -253,24 +278,29 @@ class NavigationScene():
                 viz.add_obstacle(pos=circle[0],rad=circle[1],color=(1,.25,0,.75))
         viz.hold()
 
-    def animateSolution(self, animationDelay: float=0.01):
+    def animateSolution(self, animationDelay: float=0.5):
         """
         animateSolution(0.01)
 
         assuming PRM() has been run and a solution has been found, this will animate each 
         """
         if self._solutionWasFound:
-            print("animating solution")
+
             viz = VizScene()
             viz.add_arm(self._arm)
+
+            # obstacles
             for obstacle in self._obstacles:
                 viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
-            # goal (even though we use the add_obstacle() function)
+
+            # goal
             viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
-            for jointConfig in self._solution:
+            # animate arm movement
+            for jointConfig in self._solution.jointConfigs:
                 viz.update(qs=[jointConfig])
                 time.sleep(animationDelay)
+            viz.hold()
         else:
             print("ERROR - no solution has been found. run PRM to find a solution")
 
