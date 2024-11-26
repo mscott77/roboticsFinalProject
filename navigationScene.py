@@ -8,7 +8,7 @@ import random
 
 class NavigationScene():
 
-    def __init__(self, arm: SerialArm, obstacle: Obstacle, start: List, target: Tuple[float,float], linkWidth):
+    def __init__(self, arm: SerialArm, obstacles: List[Obstacle], start: List, target: Tuple[float,float], linkWidth):
         """
         navScene = NavigationScene(SerialArm(dh,jointTypes), [Obstacle([x,y,z], r), Obstacle(...)], [q1,q2], (x,y))
 
@@ -29,8 +29,9 @@ class NavigationScene():
         """
         
         self._arm = arm
-        self._obstacleCenter = obstacle.location
-        self._obstacleRadius = obstacle.radius
+        self._obstacles = obstacles
+        # self._obstacleCenter = obstacle.location
+        # self._obstacleRadius = obstacle.radius
         self._start = start
         self._target = target
 
@@ -119,7 +120,7 @@ class NavigationScene():
 
         return isInCollision
 
-    def checkCircles(self, circles: List[Tuple[List[float],float]] ):
+    def checkCircles(self, armCircles: List[Tuple[List[float],float]] ):
         """
         generates circles along the arm (use mx+b and basic trig to find points along line that represent center of circles
         """
@@ -127,13 +128,14 @@ class NavigationScene():
         linkCollision = 0
 
         # check the generated circles
-        for circle in circles:
+        for circle in armCircles:
             armCircleCenterCoords = circle[0]
             armCircleRadius = circle[1]
             # c^2 = sqrt( a^2 + b^2)
-            distBetweenCircleCenters = np.sqrt((self._obstacleCenter[0] - armCircleCenterCoords[0])**2 + (self._obstacleCenter[1] - armCircleCenterCoords[1])**2)
-            if  distBetweenCircleCenters <= armCircleRadius + self._obstacleRadius:
-                linkCollision = 1
+            for obstacle in self._obstacles:
+                distBetweenCircleCenters = np.sqrt((obstacle.location[0] - armCircleCenterCoords[0])**2 + (obstacle.location[1] - armCircleCenterCoords[1])**2)
+                if  distBetweenCircleCenters <= armCircleRadius + obstacle.radius:
+                    linkCollision = 1
 		
         return linkCollision
 
@@ -200,7 +202,9 @@ class NavigationScene():
         if drawArm:
             viz.add_arm(self._arm, draw_frames=drawFrames)
             viz.update(qs=config)
-        viz.add_obstacle(pos=self._obstacleCenter, rad=self._obstacleRadius, color=(0,0,0,1))
+        # obstacle(s)
+        for obstacle in self._obstacles:
+            viz.add_obstacle(pos=obstacle.location, rad=obstacle.radius, color=(0,0,0,1))
         # goal (even though we use the add_obstacle() function)
         viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
