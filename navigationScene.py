@@ -279,6 +279,7 @@ class NavigationScene():
                 self._targetJointConfig = config
                 return config
             
+        print("ERROR - a valid arm configuration that avoids all obstacles and reaches the target could not be found.")
         return None
 
     def _ik_twoLink_analytical(self, x, y, L1, L2):
@@ -338,6 +339,9 @@ class NavigationScene():
 
         viz = VizScene()
 
+        if drawCollisionCircles and not self._targetJointConfig:
+            print("ERROR: drawTargetConfig was requested but no valid configuration exists")
+
         #starting arm configuration
         if drawArm:
             viz.add_arm(self._arm, draw_frames=drawFrames)
@@ -358,7 +362,7 @@ class NavigationScene():
 
         if drawCollisionCircles:
             circles = self.generateArmCircles(config)
-            if drawTargetConfig:
+            if self._targetJointConfig and drawTargetConfig:
                 moreCircles = self.generateArmCircles(self._targetJointConfig)
                 circles.extend(moreCircles)
             for circle in circles:
