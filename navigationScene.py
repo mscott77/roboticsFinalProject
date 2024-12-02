@@ -8,12 +8,20 @@ import random
 import math
 import matplotlib.pyplot as plt
 import copy
+from scipy.spatial import KDTree
+import networkx as nx
 
 class Solution():
-    def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None):
+    def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None, graph=None, path=None):
         """
         if only a message is defined, it will be assumed no solution was found and all other properties will be set to None
+
+        graph is a graph containing nodes, edges, and node values (coordinates)
+        path is a list of each node that forms the shortest path from start node to end node in the graph - this is not the end goal but it is used globally in NavScene class
+        jointConfigs: a list of joint configurations corresponding to the shortest paths nodes' "pos" values which represent the joint config in c-space
         """
+        self.graph = graph
+        self.path = path
         self.jointConfigs = jointConfigs
         self.message = message
         self.c_space_collision_points = c_space_collision_points
@@ -60,14 +68,17 @@ class NavigationScene():
 
 
 
-    #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
 
+
+    #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
     def PRM(self, numLearnPhasePoints: int=8000):
         """
-        jointConfigsToReachTarget = PRM(500)  
+        Usage:
+            PRM()
+            (has no return value)
+            no return value is needed because it populate the appropriate member variables with information.
+            particularly, the self._solution variable
 
-        [qValsTime1, qValsTime2, ... ] = PRM(500)
-        [[q1,q2], [q1,q2], [...], ...] = PRM(500)
 
         Abstract:
             runs the Probablistic Road Map path finding algorithm on the defined scene and
@@ -82,9 +93,6 @@ class NavigationScene():
             None - if a solution was not found
         """
         
-        #------------------------------------ SETUP --------------------------------------
-        c_space_non_collision_points = []
-        c_space_collision_points = []
 
         # before doing anything, make sure the start configuation is not in collision
         isStartConfigInCollision = self._checkIfConfigIsInCollision(self._start)
@@ -92,32 +100,51 @@ class NavigationScene():
             self._solutionWasFound = False
             self._solution = Solution(message="start configuration is in collision. a valid solution could not be found")
             return
-        else:
-            c_space_non_collision_points.append(self._start)
         # also make sure the goal is not in collision with an object
         isTargetPointInCollision = self._checkIfPointIsInCollision(self._target)
         if isTargetPointInCollision:
             self._solutionWasFound = False
-            self._solution = Solution(message="target point is in collision. a valid solution could not be found")
+            self._solution = Solution(message="target point coicides with an obstacle. a valid solution could not be found")
             return
         # try to find a joint configuration for the target position
         targetConfiguration = self._findJointConfigForTarget()
         if targetConfiguration:
-            c_space_non_collision_points.append(targetConfiguration)
             self._targetJointConfig = targetConfiguration
         else:
             self._solutionWasFound = False
-            self._solution = Solution(message="could not find a valid configuration for the target position. a solution could not be found. try a different target position or move the obstacle(s)")
+            self._solution = Solution(message="could not find a valid arm configuration for the target position. a solution could not be found. try a different target position or move the obstacle(s)")
             return 
 
 
         # -------------------------- LEARNING PHASE ------------------------
-        for i in range(numLearnPhasePoints):
+        freePoints,collisionPoints = self._PRM_learn(numLearnPhasePoints)
 
-            #----------option 1 - generate point in cartesian space then convert to joint angles------------------
-            # coordinates = self.generatePointCoordinatesInCircle()
-            # coordinateArray = [coordinates[0], coordinates[1], 0]
-            # config = self.arm.ik_position(coordinateArray, method='J_T')
+        # ------------------------- PATH FINDING PHASE -----------------------
+        graph, path, pathCoordinates = self._PRM_pathFind(freePoints, self._start, targetConfiguration)
+
+
+        # ------------------------- COMPOSE SOLUTION -----------------------------
+        self._solutionWasFound = True
+        self._solution = Solution(
+            graph=graph,
+            path=path,
+            jointConfigs=pathCoordinates,
+            message="pathfinding success",
+            c_space_collision_points = collisionPoints,
+            c_space_NONcollision_points = freePoints
+        )
+
+    
+    def _PRM_learn(self,numLearnPhasePoints):
+        """
+        freePoints,collisionPoints = self.PRM_learn(numLearnPhasePoints)
+
+        breaks the learning phase into it's own function
+        """
+        CspacePoints_free = []
+        CspacePoints_collision = []
+
+        for i in range(numLearnPhasePoints):
 
             #----------option 2 - generate "point"(joint angles) in c-space------------------
             q1 = random.uniform(-2*np.pi, 2*np.pi)
@@ -131,34 +158,42 @@ class NavigationScene():
             # decide whether to save the point or not
             if not isCollision:
                 # add the point to a list of points
-                c_space_non_collision_points.append(c_point)     # (c_space_non_collision_points  is a class variables)
+                CspacePoints_free.append(c_point)     # (CspacePoints_free  is a class variables)
             else:
-                c_space_collision_points.append(c_point)   # you don't really need these to find the path, but they would be nice to have to visualize the c-space
+                CspacePoints_collision.append(c_point)   # you don't really need these to find the path, but they would be nice to have to visualize the c-space
 
-        # ------------------------- PATH FINDING PHASE -----------------------
+        return CspacePoints_free, CspacePoints_collision
 
-        # ------------------------- COMPOSE SOLUTION -----------------------------
-        # FIXME: this is a fake solution
-        self._solutionWasFound = True
-        self._solution = Solution(
-            jointConfigs=[[0,0], [0,np.pi/6], [0,np.pi/5], [0,np.pi/4], [0,np.pi/3], [0,np.pi/2]],
-            message="pathfinding success",
-            c_space_collision_points = c_space_collision_points,
-            c_space_NONcollision_points = c_space_non_collision_points
-        )
+    def _PRM_pathFind(self, freePoints, start, target):
 
+        # add the start configuration to the beginning of the list, and the target at the very end.
+        # it must be in this specific order so that the pathfinding will work later
+        freePoints.insert(0,start)
+        freePoints.append(target)
 
+        graph = nx.Graph()
+        k = 3
 
-    # UNUSED
-    def generatePointCoordinatesInCircle(self):
-        # generate a single point within the robot reach
-        while True:
-            x = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
-            y = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
-                
-            # Check if the point is inside the circle
-            if (x - 0)**2 + (y - 0)**2 <= self._reachRadius**2:
-                return x, y
+        for i, point in enumerate(freePoints):
+            graph.add_node(i, pos=point)
+
+        tree = KDTree(freePoints)
+
+        for i, point in enumerate(freePoints):
+            distances, indices = tree.query(point, k=k+1)  # Include k+1 to skip self
+            for neighbor_index in indices[1:]:  # Skip the first index (the point itself)
+                graph.add_edge(i, neighbor_index)
+
+        sourceIndex = 0
+        targetIndex = len(freePoints) - 1
+
+        # get a list of the NODES that make up the shortest path
+        path = nx.shortest_path(graph,source=sourceIndex, target=targetIndex)
+
+        # get each node's coordinates since that's what we're really interested in
+        path_coordinates = [graph.nodes[node]["pos"] for node in path]
+
+        return graph, path, path_coordinates
 
 
 
@@ -324,6 +359,11 @@ class NavigationScene():
         config = [q1,q2]
         return config
 
+
+
+
+
+
     #-------------------------------------------------------------------------------- DRAWING AND ANIMATION ---------------------------------------------------------------------------------------------------
     def drawScene(self,jointConfig=None,drawFrames: bool=False, drawArm: bool=True, drawCollisionCircles: bool=False, drawTargetConfig: bool=False):
         """
@@ -400,7 +440,7 @@ class NavigationScene():
         else:
             print("ERROR - no solution has been found. run PRM to find a solution")
 
-    def animateSolution(self, animationDelay: float=0.5):
+    def animateSolution(self, animationDelay: float=0.5, reorientTime: float=5):
         """
         animateSolution(0.01)
 
@@ -418,6 +458,13 @@ class NavigationScene():
             # goal
             viz.add_obstacle(pos = [self._target[0],self._target[1],0], rad=0.5, color=(0, 0.8, 0, 0.75))
 
+            # give the user some time to reorient the scene
+            reorientPeriod = 0.01
+            numReorientFrames = int(reorientTime / reorientPeriod)
+            for i in range(numReorientFrames):
+                viz.update(qs=[self._start])
+                time.sleep(reorientPeriod)
+
             # animate arm movement
             for jointConfig in self._solution.jointConfigs:
                 viz.update(qs=[jointConfig])
@@ -426,5 +473,65 @@ class NavigationScene():
         else:
             print("ERROR - no solution has been found. run PRM to find a solution")
 
-
+    def drawGraph(self, doDrawSolution=True):
+        """
         
+        """
+        if not (self._solution and self._solutionWasFound):
+            pass
+            print("ERROR - no graph has been generated. run PRM to generate a graph")
+        else:
+            pos = nx.get_node_attributes(self._solution.graph, "pos")
+            # plot the graph with the shortest path solution
+            path_edges = list(zip(self._solution.path, self._solution.path[1:]))
+            plt.figure(figsize=(8, 6))
+            nx.draw(
+                self._solution.graph,
+                pos,
+                with_labels=True,
+                node_size=500,
+                node_color="skyblue",
+                edge_color="gray",
+                font_size=10,
+                font_weight="bold",
+            )
+            if doDrawSolution:
+                nx.draw_networkx_edges(
+                    self._solution.graph,
+                    pos,
+                    edgelist=path_edges,
+                    width=2,
+                    edge_color="red",
+                )
+
+            plt.title("Graph with Shortest Path Highlighted", fontsize=16)
+            plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------------------------------------------------------------------ UNUSED ------------------------------------------------------------------------------------------- 
+    
+    #----------option 1 - generate point in cartesian space then convert to joint angles------------------
+    # coordinates = self.generatePointCoordinatesInCircle()
+    # coordinateArray = [coordinates[0], coordinates[1], 0]
+    # config = self.arm.ik_position(coordinateArray, method='J_T')
+
+    def generatePointCoordinatesInCircle(self):
+        # generate a single point within the robot reach
+        while True:
+            x = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
+            y = random.uniform(0 - self._reachRadius, 0 + self._reachRadius)
+                
+            # Check if the point is inside the circle
+            if (x - 0)**2 + (y - 0)**2 <= self._reachRadius**2:
+                return x, y
+
