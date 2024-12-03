@@ -637,7 +637,7 @@ def pest_drawCspace_noSolution():
     navScene.drawScene()
 
 # FIRST FULL SOLUTION TEST
-def pest_fullSolution_01():
+def pest_fullSolution_00():
     target = (3.5,9)
     startConfig = [0,0]
     obstacles = [Obstacle([6,8.25,0],2)]
@@ -660,7 +660,7 @@ def pest_fullSolution_01():
         navScene.drawCspace_SolutionPath()
         navScene.animateSolution(animationDelay=0.1)
 
-def pest_fullSolution_02():
+def pest_fullSolution_01_00():
     target = (3.39,6.89)
     startConfig = [-np.pi/4,0]
     obstacles = [
@@ -669,7 +669,7 @@ def pest_fullSolution_02():
         Obstacle([9.15,2.56,0],0.5),
         Obstacle([8.49,4.82,0],0.5),
         Obstacle([6.5,6.215,0],0.5),
-        Obstacle([2.35,3,0],0.5)
+        Obstacle([2.35,3,0],0.5),
         ]
     linkWidth = 1
     link_length = 6 
@@ -683,6 +683,37 @@ def pest_fullSolution_02():
     arm = kin.SerialArm(dh,joint_types)
     navScene = NavigationScene(arm,obstacles,startConfig,target,linkWidth)
     navScene.PRM(numLearnPhasePoints=100000, k=10)
+
+    if __name__ == "__main__":
+        navScene.drawScene(drawTargetConfig=True, drawArm=True, drawCollisionCircles=True)
+        navScene.drawCspace()
+        navScene.drawCspace_SolutionPath()
+        navScene.animateSolution(animationDelay=0.1)
+
+def pest_fullSolution_01_01():
+    target = (3.39,6.89)
+    startConfig = [-np.pi/4,0]
+    obstacles = [
+        Obstacle([0,-3.5,0],0.5),
+        Obstacle([9,-4.5,0],0.5),
+        Obstacle([9.15,2.56,0],0.5),
+        Obstacle([8.49,4.82,0],0.5),
+        Obstacle([6.5,6.215,0],0.5),
+        Obstacle([2.35,3,0],0.5),
+        Obstacle([3.165,-5.35,0],0.5)
+        ]
+    linkWidth = 1
+    link_length = 6 
+
+
+
+    dh = [  [0,0,link_length,0],
+            [0,0,link_length,0]]
+    joint_types = ['r','r']
+
+    arm = kin.SerialArm(dh,joint_types)
+    navScene = NavigationScene(arm,obstacles,startConfig,target,linkWidth)
+    navScene.PRM(numLearnPhasePoints=100000, k=3)
 
     if __name__ == "__main__":
         navScene.drawScene(drawTargetConfig=True, drawArm=True, drawCollisionCircles=True)
@@ -787,4 +818,4 @@ def mess_networkx():
 #-------------------------------------------------------------------------------- MAIN -------------------------------------------------------------------------------------------------
 # run tests from here to see visualization (if there is one)
 if __name__ == "__main__":
-    pest_fullSolution_02()       
+    pest_fullSolution_01_01()       
