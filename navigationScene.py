@@ -12,7 +12,7 @@ from scipy.spatial import KDTree
 import networkx as nx
 
 class Solution():
-    def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None, graph=None, path=None):
+    def __init__(self, jointConfigs: List[List[float]]=None, message: str=None, c_space_collision_points=None, c_space_NONcollision_points=None, graph=None, path=None, c_space_solution_points=None):
         """
         if only a message is defined, it will be assumed no solution was found and all other properties will be set to None
 
@@ -26,6 +26,7 @@ class Solution():
         self.message = message
         self.c_space_collision_points = c_space_collision_points
         self.c_space_NONcollision_points = c_space_NONcollision_points
+        self.c_space_solution_points = c_space_solution_points
 
 class NavigationScene():
 
@@ -71,7 +72,7 @@ class NavigationScene():
 
 
     #-------------------------------------------------------------------------------- PRM and helpers ---------------------------------------------------------------------------------------------------
-    def PRM(self, numLearnPhasePoints: int=8000):
+    def PRM(self, numLearnPhasePoints: int=10_000, k: int=10):
         """
         Usage:
             PRM()
@@ -120,7 +121,7 @@ class NavigationScene():
         freePoints,collisionPoints = self._PRM_learn(numLearnPhasePoints)
 
         # ------------------------- PATH FINDING PHASE -----------------------
-        graph, path, pathCoordinates = self._PRM_pathFind(freePoints, self._start, targetConfiguration)
+        graph, path, pathCoordinates = self._PRM_pathFind(freePoints, self._start, targetConfiguration, k)
 
 
         # ------------------------- COMPOSE SOLUTION -----------------------------
@@ -131,7 +132,8 @@ class NavigationScene():
             jointConfigs=pathCoordinates,
             message="pathfinding success",
             c_space_collision_points = collisionPoints,
-            c_space_NONcollision_points = freePoints
+            c_space_NONcollision_points = freePoints,
+            # c_space_solution_points=cSpaceSolutionPoints
         )
 
     
@@ -164,7 +166,7 @@ class NavigationScene():
 
         return CspacePoints_free, CspacePoints_collision
 
-    def _PRM_pathFind(self, freePoints, start, target):
+    def _PRM_pathFind(self, freePoints, start, target, k):
 
         # add the start configuration to the beginning of the list, and the target at the very end.
         # it must be in this specific order so that the pathfinding will work later
@@ -172,7 +174,7 @@ class NavigationScene():
         freePoints.append(target)
 
         graph = nx.Graph()
-        k = 3
+        k = k
 
         for i, point in enumerate(freePoints):
             graph.add_node(i, pos=point)
@@ -423,10 +425,55 @@ class NavigationScene():
             xStart = self._start[0]
             yStart = self._start[1]
 
+            # end configuration
+            xEnd = self._targetJointConfig[0]
+            yEnd = self._targetJointConfig[1]
+
             # Create a scatter plot
             plt.scatter(x1, y1, color='red', label='collision')
             plt.scatter(x2, y2, color='blue', label='free')
-            plt.scatter(xStart, yStart, color='green', label='starting configuration')
+            plt.scatter(xStart, yStart, color='yellow', label='start')
+            plt.scatter(xEnd, yEnd, color='green', label='target')
+
+            # Add labels, title, and legend
+            plt.xlabel('q1')
+            plt.ylabel('q2')
+            plt.title('C-Space')
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=3)
+
+
+            # Show the plot
+            plt.show()  
+        else:
+            print("ERROR - no solution has been found. run PRM to find a solution")
+
+    def drawCspace_SolutionPath(self):
+        if self._solutionWasFound:
+            # Sample data
+            list1 = self._solution.c_space_collision_points
+            list2 = self._solution.c_space_NONcollision_points
+            solPath = self._solution.jointConfigs
+
+            # Unpack the lists into x and y coordinates
+            x1, y1 = zip(*list1)  # Unpacks [[x, y], [x, y], ...] into separate x and y
+            x2, y2 = zip(*list2)
+
+            # start config
+            xStart = self._start[0]
+            yStart = self._start[1]
+
+            # end configuration
+            xEnd = self._targetJointConfig[0]
+            yEnd = self._targetJointConfig[1]
+
+            # solution path
+            xSol,ySol = zip(*solPath)
+
+            # Create a scatter plot
+            plt.scatter(x1, y1, color='red', label='collision')
+            plt.scatter(x2, y2, color='blue', label='free')
+            plt.scatter(xSol, ySol, color='yellow', label='solution')
+
 
             # Add labels, title, and legend
             plt.xlabel('q1')

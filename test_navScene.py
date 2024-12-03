@@ -652,13 +652,14 @@ def pest_fullSolution_01():
 
     arm = kin.SerialArm(dh,joint_types)
     navScene = NavigationScene(arm,obstacles,startConfig,target,linkWidth)
-    navScene.PRM(100)
+    navScene.PRM(numLearnPhasePoints=8000, k=10)
 
     if __name__ == "__main__":
         navScene.drawScene(drawTargetConfig=True, drawArm=True, drawCollisionCircles=True)
         navScene.drawCspace()
-        navScene.drawGraph()
-        navScene.animateSolution()
+        navScene.drawCspace_SolutionPath()
+        # navScene.drawGraph()
+        navScene.animateSolution(animationDelay=0.1)
 
 #----------------------------------------------- messing around with networkx ---------------------------------------
 
@@ -696,7 +697,7 @@ def mess_networkx():
 
 
     graph = nx.Graph()
-    k = 3
+    k = 10
 
     for i, point in enumerate(freePoints):
         graph.add_node(i, pos=point)
